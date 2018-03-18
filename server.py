@@ -71,7 +71,6 @@ class DataHandler:
             data, self.file = data.split(b'!~file')
         self.data = shlex.split(data.decode())
         click.echo('  Received command: ' + click.style(' '.join(self.data), fg='cyan'))
-        # noinspection PyArgumentList
         handlers = {
             'helloworld': self.__hello_world_handler,
             'echo': self.__echo,
