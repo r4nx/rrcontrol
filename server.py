@@ -67,13 +67,6 @@ class DataHandler:
         self.file = None
 
     def handle(self, data: bytes):
-        # Implementation with !~ limiter
-        #
-        # if b'!~' in data:
-        #     elements = data.split(b'!~')
-        #     self.data = [elements[0], b''.join(elements[1:]).split(b' ')]
-        # else:
-        #     self.data = [data]
         if b'!~file' in data:
             data, self.file = data.split(b'!~file')
         self.data = shlex.split(data.decode())
