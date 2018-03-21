@@ -30,9 +30,11 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.command(context_settings=CONTEXT_SETTINGS)
 @click.option('--host', default='127.0.0.1', prompt=True, type=click.STRING)
 @click.option('--port', default=50008, prompt=True, type=click.INT)
-@click.option('-c', '--command', default='helloworld', prompt=True, type=click.STRING)
-@click.option('-f', '--file', type=click.File('rb'))
-def main(host, port, command, file):
+@click.option('--password', '-p', default='123321', prompt=True, hide_input=True, type=click.STRING)
+@click.option('--command', '-c', default='helloworld', prompt=True, type=click.STRING)
+@click.option('--file', '-f', type=click.File('rb'))
+@click.option('--output', '-o', type=click.File('wb'))
+def main(host, port, password, command, file, output):
     with socketcontext(socket.AF_INET, socket.SOCK_STREAM) as sock:
         try:
             sock.connect((host, port))
@@ -40,7 +42,12 @@ def main(host, port, command, file):
             click.secho('Error: connection refused.', fg='red')
             exit()
         click.secho('Connection established.', fg='green')
-        sock.send(command.encode())
+        try:
+            sock.send(password.ljust(16)[:16].encode())
+            sock.send(command.encode())
+        except ConnectionResetError:
+            click.secho('Error: connection reset on sending.', fg='red')
+            exit()
         if file:
             sock.send(b64decode('IX5maWxl'))
             while True:
@@ -61,8 +68,15 @@ def main(host, port, command, file):
                 break
             if not chunk:
                 break
-            data += chunk
-        click.echo('  Returned:\n    ' + click.style(data.decode().replace('\n', '\n    '), fg='cyan'))
+            if output:
+                output.write(chunk)
+            else:
+                data += chunk
+        if not output:
+            try:
+                click.echo('  Response:\n    ' + click.style(data.decode().replace('\n', '\n    '), fg='cyan'))
+            except UnicodeDecodeError:
+                click.secho('Error: UnicodeDecodeError while decoding the response.', fg='red')
 
 
 if __name__ == '__main__':
