@@ -18,6 +18,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import socket
+from base64 import b64decode
 
 import click
 
@@ -41,7 +42,7 @@ def main(host, port, command, file):
         click.secho('Connection established.', fg='green')
         sock.send(command.encode())
         if file:
-            sock.send(b'!~file')
+            sock.send(b64decode('IX5maWxl'))
             while True:
                 chunk = file.read(1024)
                 if not chunk:

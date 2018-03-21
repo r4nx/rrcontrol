@@ -17,9 +17,12 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+# TODO: webcam screenshot
+
 import shlex
 import socket
 import subprocess
+from base64 import b64decode
 
 import click
 
@@ -55,8 +58,11 @@ def main(host, port, recv_data_limit):
                     if not chunk:
                         break
                     data += chunk
+                response = data_handler.handle(data)
+                if len(response) < 1024:
+                    click.echo('  Response:\n    ' + click.style(response.decode().replace('\n', '\n    '), fg='cyan'))
                 try:
-                    conn.send(data_handler.handle(data))
+                    conn.send(response)
                 except ConnectionResetError:
                     click.secho('Error: connection reset.', fg='red')
 
@@ -67,9 +73,13 @@ class DataHandler:
         self.file = None
 
     def handle(self, data: bytes):
-        if b'!~file' in data:
-            data, self.file = data.split(b'!~file')
-        self.data = shlex.split(data.decode())
+        limiter = b64decode('IX5maWxl')
+        if limiter in data:
+            data, self.file = data[:data.index(limiter)], data[data.index(limiter) + len(limiter):]
+        try:
+            self.data = shlex.split(data.decode())
+        except ValueError:
+            return b'Invalid command, error while parsing.'
         click.echo('  Received command: ' + click.style(' '.join(self.data), fg='cyan'))
         handlers = {
             'helloworld': self.__hello_world_handler,
