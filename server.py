@@ -157,12 +157,12 @@ class DataHandler:
         if len(self.data) < 2:
             return b'Not enough arguments.'
         if self.data[1].lower() == 'move':
-            if len(self.data) < 4 or not self.data[2].isdigit() or not self.data[3].isdigit():
+            if len(self.data) < 4 or not self.isdigit(self.data[2]) or not self.isdigit(self.data[3]):
                 return b'Not enough arguments/invalid arguments.'
             pyautogui.moveTo(int(self.data[2]), int(self.data[3]))
             return b'Successfully.'
         elif self.data[1].lower() == 'moverel':
-            if len(self.data) < 4 or not self.data[2].isdigit() or not self.data[3].isdigit():
+            if len(self.data) < 4 or not self.isdigit(self.data[2]) or not self.isdigit(self.data[3]):
                 return b'Not enough arguments/invalid arguments.'
             pyautogui.moveRel(int(self.data[2]), int(self.data[3]))
             return b'Successfully.'
@@ -178,6 +178,14 @@ class DataHandler:
     @staticmethod
     def __exit_handler():
         exit()
+
+    @staticmethod
+    def isdigit(s: str):
+        try:
+            int(s)
+            return True
+        except ValueError:
+            return False
 
 
 if __name__ == '__main__':
