@@ -17,18 +17,15 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-# TODO: == COMPLETED == webcam screenshot
-# TODO: file response
-# TODO: == COMPLETED == require password to connect
-# TODO: mouse move and freeze
-# TODO: encryption
-
+import io
 import shlex
 import socket
 import subprocess
 from base64 import b64decode
 
 import click
+import pyautogui
+from PIL import ImageGrab
 from cv2 import VideoCapture, imencode
 
 from context import socketcontext, acceptconnectioncontext
@@ -50,7 +47,7 @@ def main(host, port, password, recv_data_limit):
         data_handler = DataHandler()
         while True:
             with acceptconnectioncontext(sock) as (conn, addr):
-                conn.settimeout(1.5)
+                conn.settimeout(0.5)
                 click.secho('Connection from {}:{}.'.format(addr[0], addr[1]), fg='yellow')
                 try:
                     if not conn.recv(16).rstrip() == password.encode():
@@ -79,6 +76,8 @@ def main(host, port, password, recv_data_limit):
                                                                      fg='cyan'))
                     except UnicodeDecodeError:
                         click.secho('Error: UnicodeDecodeError while decoding the response.', fg='red')
+                else:
+                    click.secho('  Response is too long to display.', fg='cyan')
                 try:
                     conn.send(response)
                 except ConnectionResetError:
@@ -101,10 +100,12 @@ class DataHandler:
         click.echo('  Received command: ' + click.style(' '.join(self.data), fg='cyan'))
         handlers = {
             'helloworld': self.__hello_world_handler,
-            'echo': self.__echo,
-            'savefile': self.__save_file,
-            'exec': self.__exec,
-            'webcamphoto': self.__webcam_photo,
+            'echo': self.__echo_handler,
+            'savefile': self.__save_file_handler,
+            'exec': self.__exec_handler,
+            'screen': self.__screenshot_handler,
+            'webcamphoto': self.__webcam_photo_handler,
+            'mouse': self.__mouse_handler,
             'exit': self.__exit_handler
         }
         if self.data[0].lower() not in handlers:
@@ -115,18 +116,18 @@ class DataHandler:
     def __hello_world_handler():
         return b'Hello World'
 
-    def __exec(self):
-        result = subprocess.run(' '.join(self.data[1:]), stderr=subprocess.STDOUT, stdout=subprocess.PIPE,
-                                shell=True)
+    def __exec_handler(self):
+        result = subprocess.run(self.data[1:], stderr=subprocess.STDOUT, stdout=subprocess.PIPE,
+                                shell=True, timeout=600)
         return result.stdout.decode('cp866').encode()
 
-    def __echo(self):
-        if len(self.data) > 1:
-            click.echo(' '.join(self.data[1:]))
-            return b'Successfully.'
-        return b'Not enough arguments.'
+    def __echo_handler(self):
+        if len(self.data) < 2:
+            return b'Not enough arguments.'
+        click.echo(click.style('Echo: ', fg='cyan') + self.data[1:])
+        return b'Successfully.'
 
-    def __save_file(self):
+    def __save_file_handler(self):
         if len(self.data) > 1 and self.file:
             try:
                 with open(self.data[1], 'wb') as f:
@@ -134,17 +135,45 @@ class DataHandler:
             except Exception as e:
                 error_msg = 'Error: {}: {}'.format(type(e).__name__, e)
                 click.secho(error_msg, fg='red')
-                return error_msg
+                return error_msg.encode()
             return b'Successfully.'
         return b'Input or destination file not specified.'
 
     @staticmethod
-    def __webcam_photo():
+    def __screenshot_handler():
+        with ImageGrab.grab() as img, io.BytesIO() as screen:
+            img.save(screen, format='PNG')
+            return screen.getvalue()
+
+    @staticmethod
+    def __webcam_photo_handler():
         cam = VideoCapture(0)
         s, img = cam.read()
         if s:
             return imencode('.jpg', img)[1]
         return b'Error while reading from webcam.'
+
+    def __mouse_handler(self):
+        if len(self.data) < 2:
+            return b'Not enough arguments.'
+        if self.data[1].lower() == 'move':
+            if len(self.data) < 4 or not self.data[2].isdigit() or not self.data[3].isdigit():
+                return b'Not enough arguments/invalid arguments.'
+            pyautogui.moveTo(int(self.data[2]), int(self.data[3]))
+            return b'Successfully.'
+        elif self.data[1].lower() == 'moverel':
+            if len(self.data) < 4 or not self.data[2].isdigit() or not self.data[3].isdigit():
+                return b'Not enough arguments/invalid arguments.'
+            pyautogui.moveRel(int(self.data[2]), int(self.data[3]))
+            return b'Successfully.'
+        elif self.data[1].lower() == 'click' or self.data[1].lower() == 'dclick':
+            if len(self.data) > 2 and not self.data[2].lower() in ['left', 'middle', 'right']:
+                return b'Invalid argument (only left, middle or right value is allowed).'
+            pyautogui.click(clicks=2 if self.data[1].lower() == 'dclick' else 1,
+                            button=self.data[2].lower() if len(self.data) > 2 else 'left')
+            return b'Successfully.'
+        else:
+            return b'Unknown subcommand.'
 
     @staticmethod
     def __exit_handler():
